@@ -1,0 +1,10 @@
+{
+  "name": "thai-helpdesk",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Persistent Discord ticket helpdesk for THAI",
+  "engines": { "node": ">=24.0.0" },
+  "scripts": { "start": "node src/index.js", "test": "node --test", "check": "node --check src/index.js && node --check src/helpdesk.js" },
+  "dependencies": { "discord.js": "^14.22.1", "dotenv": "^17.2.3" }
+}
