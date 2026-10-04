@@ -3,7 +3,15 @@ import { templates } from './content.js';
 const command = (name, description) => new SlashCommandBuilder().setName(name).setDescription(description).setDMPermission(false);
 export const commands = [
   command('setup','Create or repair helpdesk roles, private category, and logs').setDefaultMemberPermissions(P.Administrator),
-  command('panel','Post the ticket opening panel in this channel').setDefaultMemberPermissions(P.ManageGuild),
+  command('panel','Create or update your banner and Thai emoji panel').setDefaultMemberPermissions(P.ManageGuild)
+    .addAttachmentOption(o=>o.setName('banner').setDescription('Upload the banner image (PNG, JPEG, GIF or WebP; max 8 MB)'))
+    .addStringOption(o=>o.setName('heading_emoji').setDescription('Customer Assistance emoji: custom emoji, ID, :name:, or none').setMaxLength(100))
+    .addStringOption(o=>o.setName('alliance_emoji').setDescription('Star Alliance footer emoji: custom emoji, ID, :name:, or none').setMaxLength(100))
+    .addStringOption(o=>o.setName('general_emoji').setDescription('General Support menu emoji: custom emoji, ID, :name:, or none').setMaxLength(100))
+    .addStringOption(o=>o.setName('report_emoji').setDescription('Player Report menu emoji: custom emoji, ID, :name:, or none').setMaxLength(100))
+    .addStringOption(o=>o.setName('staff_emoji').setDescription('Staff Report menu emoji: custom emoji, ID, :name:, or none').setMaxLength(100))
+    .addStringOption(o=>o.setName('appeal_emoji').setDescription('Moderation Appeal menu emoji: custom emoji, ID, :name:, or none').setMaxLength(100))
+    .addStringOption(o=>o.setName('partnership_emoji').setDescription('Partnership menu emoji: custom emoji, ID, :name:, or none').setMaxLength(100)),
   command('helpdesk','Show helpdesk commands and ticket guidance'),
   command('ticket','Manage this support ticket')
     .addSubcommand(s=>s.setName('claim').setDescription('Assign this ticket to yourself'))

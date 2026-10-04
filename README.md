@@ -105,3 +105,22 @@ npm start
 Only the supplied Thai custom emojis are used: `b_support` (`1555047347573096489`) and `star_alliance` (`1555049259609493555`). `/panel` checks that both exist in the server and are usable by the bot, including emoji role restrictions. If either is unavailable it explains the problem privately instead of posting broken emoji codes or substituting standard emojis. The banner ships with the bot and is uploaded directly to Discord.
 
 After deploying this update, run `/panel` in the assistance channel. Panels posted before this branding update were not tracked: remove the old panel manually once the new one is posted. Subsequent `/panel` calls in the same channel update the tracked message instead of creating duplicates.
+
+### Choose the banner and each emoji with /panel
+
+The slash command now includes optional fields:
+
+| Option | Position |
+| --- | --- |
+| `banner` | Upload the top banner (PNG/JPEG/GIF/WebP, up to 8 MB) |
+| `heading_emoji` | Before Customer Assistance |
+| `alliance_emoji` | After the Star Alliance footer |
+| `general_emoji` | General Support menu entry |
+| `report_emoji` | Player Report menu entry |
+| `staff_emoji` | Staff Report menu entry |
+| `appeal_emoji` | Moderation Appeal menu entry |
+| `partnership_emoji` | Partnership / Other menu entry |
+
+For each emoji, paste a server custom emoji (`<:name:ID>` or `<a:name:ID>`), its numeric ID, or `:name:`. Enter `none` to leave a spot blank. Only custom emojis from this server that the bot can use are accepted; standard emojis are not substituted. If the original supplied IDs are unavailable, replace **both** heading and alliance options, or set either to `none`. Menu positions default to the heading emoji until customized.
+
+Settings are saved per channel; omitted fields retain their previous choices. Uploaded banners are downloaded into a `banners` directory beside the database and re-uploaded to Discord when updating the panel, avoiding expiring attachment links. The database directory must be on the persistent disk to retain these uploads and configuration after Render restarts. Redeploy/restart the bot to register the new command options. Guild command registration with `DISCORD_GUILD_ID` makes them available in that server directly.
