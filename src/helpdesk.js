@@ -50,7 +50,7 @@ export class Helpdesk {
     for(const [key,name,color] of [['supportRole','Support',0x3498db],['adminRole','Ticket Admin',COLOR]]) {
       let role = c[key] && i.guild.roles.cache.get(c[key]);
       // Do not silently adopt existing roles with the same name and unknown membership.
-      if(!role) role = await i.guild.roles.create({name,color,permissions:[],reason:'THAI helpdesk setup'});
+      if(!role) role = await i.guild.roles.create({name,colors:{primaryColor:color},permissions:[],reason:'THAI helpdesk setup'});
       c[key]=role.id;
       this.store.saveConfig(i.guildId,c);
     }
