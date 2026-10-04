@@ -1,9 +1,9 @@
 export const types = {
-  general: { label:'General Support', emoji:'🎫', description:'Questions, account help, or server assistance', fields:['How can we help?', 'Explain the issue and steps already tried', 'Links or supporting information (optional)'] },
-  report: { label:'Player Report', emoji:'🛡️', description:'Report a rule violation with evidence', fields:['Reported user name and Discord ID', 'What happened? Include date and time', 'Evidence links or witnesses (optional)'] },
-  staff: { label:'Staff Report', emoji:'🔒', description:'Confidential report visible to ticket admins', adminOnly:true, fields:['Staff member name and Discord ID', 'Describe the incident with date and time', 'Evidence links (optional)'] },
-  appeal: { label:'Moderation Appeal', emoji:'⚖️', description:'Request a review of a moderation action', fields:['Your user name and moderation action', 'Why should the action be reviewed?', 'Additional context or evidence (optional)'] },
-  partnership: { label:'Partnership / Other', emoji:'🤝', description:'Partnership proposals and other requests', fields:['Community name or request subject', 'Tell us about your proposal or request', 'Relevant links (optional)'] }
+  general: { label:'General Support', description:'Questions, account help, or server assistance', fields:['How can we help?', 'Explain the issue and steps already tried', 'Links or supporting information (optional)'] },
+  report: { label:'Player Report', description:'Report a rule violation with evidence', fields:['Reported user name and Discord ID', 'What happened? Include date and time', 'Evidence links or witnesses (optional)'] },
+  staff: { label:'Staff Report', description:'Confidential report visible to ticket admins', adminOnly:true, fields:['Staff member name and Discord ID', 'Describe the incident with date and time', 'Evidence links (optional)'] },
+  appeal: { label:'Moderation Appeal', description:'Request a review of a moderation action', fields:['Your user name and moderation action', 'Why should the action be reviewed?', 'Additional context or evidence (optional)'] },
+  partnership: { label:'Partnership / Other', description:'Partnership proposals and other requests', fields:['Community name or request subject', 'Tell us about your proposal or request', 'Relevant links (optional)'] }
 };
 export const templates = {
   welcome: 'Thank you for contacting THAI Support! A team member will assist you here. Please describe the issue clearly and include any relevant screenshots. Do not share passwords, tokens, or payment details.',

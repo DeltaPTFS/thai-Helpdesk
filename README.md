@@ -97,3 +97,11 @@ npm start
 4. Open Staff Report; confirm Support cannot see it while Ticket Admin can.
 5. Close/reopen and verify owner message permissions. Restart the service and test an old button.
 6. Close and delete as Ticket Admin; confirm the transcript exists in private logs before the channel disappears.
+
+## Thai Customer Assistance branding
+
+`/panel` displays the bundled `assets/thai-assistance-banner.jpeg` above a Customer Assistance text card, followed by the existing ticket category menu. It uses Discord Components V2 to keep the banner above the card. The Customer Care name is bold display text, not a role ping. The panel includes the supplied 24/7 availability wording; staffing is managed by your team.
+
+Only the supplied Thai custom emojis are used: `b_support` (`1555047347573096489`) and `star_alliance` (`1555049259609493555`). `/panel` checks that both exist in the server and are usable by the bot, including emoji role restrictions. If either is unavailable it explains the problem privately instead of posting broken emoji codes or substituting standard emojis. The banner ships with the bot and is uploaded directly to Discord.
+
+After deploying this update, run `/panel` in the assistance channel. Panels posted before this branding update were not tracked: remove the old panel manually once the new one is posted. Subsequent `/panel` calls in the same channel update the tracked message instead of creating duplicates.

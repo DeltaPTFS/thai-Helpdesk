@@ -1,6 +1,7 @@
 import { ActionRowBuilder as Row, ButtonBuilder as Button, ButtonStyle as Style, StringSelectMenuBuilder as Select, ModalBuilder as Modal, TextInputBuilder as Input, TextInputStyle, EmbedBuilder as Embed, ChannelType, PermissionFlagsBits as P, AttachmentBuilder, MessageFlags } from 'discord.js';
 import { types, templates, canAdmin, canStaff, mayAccess, transcriptLine } from './content.js';
 import { Locks } from './store.js';
+import { buildPanel, resolveThaiEmojis, thaiEmojis, emojiText } from './branding.js';
 
 const COLOR = 0x653cba;
 const allow = [P.ViewChannel,P.SendMessages,P.ReadMessageHistory,P.AttachFiles,P.EmbedLinks];
@@ -70,8 +71,23 @@ export class Helpdesk {
   async panel(i,c) {
     requireThat(canAdmin(i.member,c),'Only a ticket administrator can post the panel.');
     requireThat(i.channel.type===ChannelType.GuildText,'Post the panel in a regular server text channel.');
-    await i.channel.send({embeds:[embed('THAI | Support Center','Welcome to the THAI Helpdesk. Select the category that best matches your request and complete the short form.\n\n🎫 **General Support** — Questions and assistance\n🛡️ **Player Report** — Report a rule violation\n🔒 **Staff Report** — Confidential admin review\n⚖️ **Moderation Appeal** — Request a review\n🤝 **Partnership / Other** — Proposals and other requests\n\n**Your ticket is private.** Relevant staff and server administrators can access it. Please provide clear details and evidence, and avoid opening duplicate tickets. Never share passwords or tokens.\n\nOur team will respond when available.')],components:[new Row().addComponents(new Select().setCustomId('ticket:open').setPlaceholder('Choose a support category…').addOptions(Object.entries(types).map(([value,t])=>({label:t.label,value,emoji:t.emoji,description:t.description}))))],allowedMentions:silent});
-    await this.respond(i,'Ticket panel posted.');
+    const emojis=await resolveThaiEmojis(i.guild);
+    const payload=buildPanel(emojis);
+    const previous=c.panels?.[i.channelId];
+    let message;
+    if(previous) {
+      try { message=await i.channel.messages.fetch(previous); }
+      catch(err) { if(err.code!==10008) throw err; }
+    }
+    if(message && message.author.id===this.client.user.id) {
+      // Clear legacy embeds/content when converting an older tracked panel to V2.
+      await message.edit({...payload,content:null,embeds:[],attachments:[]});
+    } else {
+      message=await i.channel.send(payload);
+    }
+    c.panels={...c.panels,[i.channelId]:message.id};
+    this.store.saveConfig(i.guildId,c);
+    await this.respond(i,'Thai Customer Assistance panel ready. Run /panel here again to update this message.');
   }
   async open(i,kind,c) {
     requireThat(types[kind],'Unknown ticket category.');
@@ -84,7 +100,7 @@ export class Helpdesk {
     try {
       channel=await i.guild.channels.create({name:`ticket-${String(t.id).padStart(4,'0')}-${kind}`,type:ChannelType.GuildText,parent:c.category,topic:`THAI ticket #${t.id} | Owner ${t.owner} | ${kind}`,permissionOverwrites:this.overwrites(i.guild,c,t),reason:`Helpdesk ticket #${t.id}`});
       t.channel=channel.id; t.status='open'; this.store.save(t);
-      await channel.send({content:`<@${t.owner}>`,embeds:[embed(`${types[kind].emoji} Ticket #${t.id} • ${types[kind].label}`,`${templates.welcome}\n\n**Status:** Open • **Priority:** Normal\n**Visibility:** ${t.adminOnly?'Owner and ticket admins':'Owner and support team'}\nUse the buttons below or **/ticket** to manage this request.`).addFields(answers.map(a=>({name:a.label,value:a.value})))],components:[controls()],allowedMentions:{users:[t.owner],parse:[]}});
+      await channel.send({content:`<@${t.owner}>`,embeds:[embed(`Ticket #${t.id} • ${types[kind].label}`,`${emojiText(thaiEmojis.support)} **Thai Airways Customer Care**\n\n${templates.welcome}\n\n**Status:** Open • **Priority:** Normal\n**Visibility:** ${t.adminOnly?'Owner and ticket admins':'Owner and support team'}\nUse the buttons below or **/ticket** to manage this request.`).addFields(answers.map(a=>({name:a.label,value:a.value})))],components:[controls()],allowedMentions:{users:[t.owner],parse:[]}});
     } catch(err) {
       if(channel) {
         // Keep a tracked channel if only the welcome message failed.
