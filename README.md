@@ -1,109 +1,121 @@
-# THAI Helpdesk
+# Thai Airways Modmail
 
-A Discord support bot with private intake forms, persistent ticket records, staff tools, and a Render health endpoint.
+Members send a **direct message to the bot**. The bot forwards it to a private staff channel. Staff use **`/modmail reply`** to send a DM back through the bot. Members do not need to open a ticket channel or complete a form.
 
-## Included
+Normal staff-channel messages and `/modmail note` are internal: they are never automatically forwarded to members. Replies appear under the bot's identity, not a staff member's personal account.
 
-- `/setup` creates **Support**, **Ticket Admin**, a private **Tickets** category, and admin-only **ticket-logs**. Re-running repairs the configured resources without creating duplicates. Existing unrelated roles with matching names are not adopted.
-- `/panel` posts a branded embed and category dropdown in the current text channel.
-- Five intake formats: General Support, Player Report, confidential Staff Report, Moderation Appeal, Partnership / Other.
-- Form answers, private welcome messages, and persistent Claim / Close / Reopen / Transcript buttons.
-- Claims, priorities, participant access, rename, escalation, canned replies, ticket counts, and audit logs.
-- Close with a reason; reopen without losing history. Closed tickets remain readable by their owner but the owner cannot send messages.
-- Admin-only permanent deletion with confirmation and a mandatory successful transcript upload first.
-- Two active tickets per member and a 60-second creation cooldown.
-- SQLite persistence and recovery of interrupted ticket creation. Run exactly one instance with a persistent disk.
+## Activate on Render
 
-## Activate on your existing Render service
+- Repository: `DeltaPTFS/thai-Helpdesk`, branch `main`.
+- Build: `npm ci`
+- Start: `npm start`
+- Node: `24.19.0`
+- Health check: `/healthz`
+- One instance with a persistent disk mounted at `/var/data`.
 
-This repository contains code and configuration, not a Discord token. The bot cannot create server resources until it has been deployed, invited, and `/setup` is run.
+Environment:
 
-1. In the [Discord Developer Portal](https://discord.com/developers/applications), create/select your application. On **Bot**, enable **Message Content Intent** so transcripts include message text. Copy the bot token directly into Render's secret environment settings. **Never paste it into GitHub or chat.** Leave the Interactions Endpoint URL blank; this bot uses the Discord Gateway.
-2. Under **OAuth2 → URL Generator**, select `bot` and `applications.commands`. Choose: View Channels, Send Messages, Read Message History, Embed Links, Attach Files, Manage Channels, Manage Roles, and Manage Messages. Invite the bot to your server. Place its role above the helpdesk roles in the server's role list. It does not need Administrator.
-3. In your existing Render service for `thai-helpdesk.onrender.com`, connect `DeltaPTFS/thai-Helpdesk`, branch `main`. Set runtime **Node**, build command **`npm ci`**, start command **`npm start`**, and health check **`/healthz`**.
-4. Configure environment variables:
+| Key | Value |
+| --- | --- |
+| `DISCORD_TOKEN` | Secret bot token, set privately in Render |
+| `DISCORD_GUILD_ID` | ID of the Thai server the bot serves |
+| `DATABASE_PATH` | `/var/data/helpdesk.sqlite` |
+| `NODE_VERSION` | `24.19.0` |
 
-   | Variable | Value |
-   | --- | --- |
-   | `DISCORD_TOKEN` | Your secret bot token |
-   | `DISCORD_GUILD_ID` | Your server ID (recommended for immediate command registration) |
-   | `NODE_VERSION` | `24.19.0` |
-   | `DATABASE_PATH` | `/var/data/helpdesk.sqlite` |
+`DISCORD_GUILD_ID` is strongly recommended. If omitted, startup only selects a server automatically when the bot belongs to exactly one server. It never routes a DM arbitrarily between multiple servers.
 
-5. Attach a persistent disk mounted at **`/var/data`** and use an always-on paid service with **one instance**. The included `render.yaml` describes a Starter service and 1 GB disk; applying it may incur Render charges. It does not automatically reconfigure an existing service. No hosting purchase is performed by this repository.
-6. Deploy. Logs should show `THAI Helpdesk ready`. The public URL returns a minimal JSON status; it is not a ticket dashboard. Tickets and transcripts are not exposed on the web.
-7. In Discord, run **`/setup`** as a server administrator. Assign the new **Support** role to your support team and **Ticket Admin** to trusted ticket managers. In **Server Settings → Integrations → THAI Helpdesk**, allow Ticket Admin to use `/panel` if its members do not have Manage Server. The bot also checks permissions at runtime.
-8. Run **`/panel`** in a public channel such as `#support`. Open a test ticket as a regular member and verify the roles' visibility before launching.
+In the [Discord Developer Portal](https://discord.com/developers/applications), enable **Message Content Intent**. The bot subscribes to Direct Messages and uses channel partials for DM reception. Leave Interactions Endpoint URL blank (Gateway mode).
 
-Render Free services can sleep and lose local files on redeployment/restart; this SQLite configuration requires a persistent disk. See [Render Free limits](https://render.com/docs/free) and [persistent disks](https://render.com/docs/disks). Do not use uptime pings as a substitute for durable storage.
+Invite scopes: `bot`, `applications.commands`. Give the bot View Channels, Send Messages, Read Message History, Embed Links, Attach Files, Manage Channels, Manage Roles, and Manage Messages. Place its role above the staff roles it manages. Administrator permission is not required for the bot.
 
-## Commands
+Deploy, then run **`/setup`** as a server administrator and **`/panel`** in the public assistance channel. Setup creates a private **Modmail** category and admin-only **modmail-logs**. It reuses the previously configured Support and Ticket Admin roles when present; a new installation creates Support and Modmail Admin. Assign staff roles to trusted people. To let an admin-role member without Manage Server post the panel, allow `/panel` in Server Settings → Integrations.
 
-| Command | Who can use it | Purpose |
-| --- | --- | --- |
-| `/setup` | Server administrators | Create/repair helpdesk resources |
-| `/panel` | Ticket admins; Discord command permissions also apply | Post the opening panel |
-| `/helpdesk` | Everyone | Show command guidance |
-| `/ticket info` | Ticket participants/staff | Status, owner, assignment, priority |
-| `/ticket close` | Owner/relevant staff | Close with a required reason |
-| `/ticket transcript` | Owner/relevant staff | Private text export |
-| `/ticket claim`, `unclaim` | Relevant staff | Manage assignment; admins may release claims |
-| `/ticket reopen` | Relevant staff | Restore a closed ticket |
-| `/ticket add`, `remove` | Relevant staff | Manage additional participants |
-| `/ticket rename` | Relevant staff | Change the channel label |
-| `/ticket priority` | Relevant staff | Low, normal, high, or urgent |
-| `/ticket reply` | Relevant staff | Welcome, evidence, waiting, investigating, resolved, rules |
-| `/ticket escalate` | Relevant staff | Restrict to owner/admins and remove extra participants |
-| `/ticket delete` | Ticket admins | Confirm, archive, permanently delete a closed channel |
-| `/ticket-stats` | Staff | Counts by state |
+The included Render blueprint uses a paid Starter service and persistent disk. Render Free does not retain a local database across restarts/redeployments. See [Render persistent disks](https://render.com/docs/disks). The public web URL is a minimal health endpoint, not a dashboard.
 
-Ticket Admin is a helpdesk role, **not** the server-wide Administrator permission. Server administrators inherently bypass channel privacy. Staff Report tickets are visible to their owner and admins; ordinary Support staff cannot access them. Added participants are disabled for confidential tickets. Unassigning a role does not remove a separately granted participant override; use `/ticket remove` for participants.
+## Member experience
 
-## Customize formats and messages
+1. Open the bot profile from **Message Customer Care** on the assistance panel.
+2. Choose **Message** and send a question or an attachment.
+3. The bot confirms that it forwarded the message to the support team. If no confirmation arrives, retry when the bot is online.
+4. Staff replies arrive as DMs from the bot. Keep DMs enabled and do not block the bot.
+5. When staff close the conversation, the member receives the reason when DM delivery is possible. A later DM starts a new conversation.
 
-Edit **`src/content.js`** to change category labels, intake questions, descriptions, and canned replies. Edit the `panel` method in **`src/helpdesk.js`** to change panel copy. No response-time promises are hardcoded. Submitted content cannot ping roles or `@everyone` through bot messages.
+The private staff channel is visible to Support and modmail admins, including server administrators. The member is not added to the staff channel. This is a shared support inbox, not a confidential one-to-one conversation with an individual moderator. Members who also hold a staff role retain the access granted by that role.
 
-## Local development
+Only members of the configured server can send modmail. Nonmembers and blocked users are not forwarded. Each member can have one active conversation. A rate limit permits ten DM events per minute per member; rejected messages are not queued.
 
-Requires Node 24 or newer.
+## Staff commands
+
+| Command | Behavior |
+| --- | --- |
+| `/setup` | Create/repair resources; server administrators only |
+| `/panel [banner]` | Post/update the public DM contact panel; modmail admins |
+| `/helpdesk` | Explain how to use modmail |
+| `/modmail reply message:… [attachment]` | Explicitly send a DM to the member |
+| `/modmail template name:…` | Send a prepared support reply |
+| `/modmail note message:…` | Record an internal note; no member DM |
+| `/modmail claim` | Assign the conversation to yourself |
+| `/modmail unclaim` | Release your claim; admins may release another person's claim |
+| `/modmail escalate` | Restrict the staff channel to admins |
+| `/modmail close reason:…` | Upload transcript to private logs, close, notify member |
+| `/modmail transcript` | Export a staff-only record including notes |
+| `/modmail info` | Show member, assignment, visibility and status |
+| `/modmail block user:…` | Admin: stop inbound modmail from a member |
+| `/modmail unblock user:…` | Admin: allow inbound modmail again |
+
+Only relevant staff can manage a conversation. Support cannot manage an escalated conversation. Claims indicate assignment but do not prevent other authorized staff from replying. Block/unblock affects incoming DMs only and does not remove existing conversations.
+
+Closing requires successful transcript upload. If upload fails, the conversation stays open. Closed channels remain for staff review and are not automatically deleted. Admins can manually remove archived channels after confirming the transcript exists, to stay within Discord category/channel quotas.
+
+## Panel and branding
+
+The panel retains your Thai banner, Customer Assistance card, and Star Alliance footer, with a **Message Customer Care** link button instead of a ticket dropdown. It explains that messages are forwarded privately to the team and replies arrive via DM. It does not promise immediate 24/7 human staffing.
+
+`/panel banner:` accepts PNG/JPEG/GIF/WebP up to 8 MB. Uploaded images are stored beside the database and re-uploaded when the panel is edited. Keep both on the persistent disk. Subsequent `/panel` calls update the tracked message in that channel. Older untracked panels should be manually removed.
+
+No custom emojis are required. Only ✅ and ❌ are used in appropriate bot status messages. User-supplied content is retained as submitted, with mentions disabled on forwarded messages.
+
+## Migration from tickets
+
+Deploy this version and run `/setup`, then `/panel`. Startup replaces this app's commands in the configured server and removes its old global commands. `/ticket` and `/ticket-stats` are retired. Old ticket buttons respond with instructions to DM the bot instead.
+
+Existing ticket channels, old ticket rows, old log channels and role assignments are not deleted. Old ticket channels are not converted into modmail conversations because their messages were server conversations, not DMs. Their existing access remains unchanged. Manually archive/remove old channels when you no longer need them. Modmail uses separate database tables and a new private category.
+
+## Delivery and record limitations
+
+- Attachments are forwarded **as Discord links**, in either direction. Files are not downloaded or permanently backed up. Links can expire; ask the member to resend when needed.
+- Only new message events received while the bot is connected are relayed. There is no offline inbox replay, message-edit synchronization, message-deletion synchronization, voice call handling, or automatic retry queue.
+- Stickers prompt staff to ask for a text description. Reactions and other non-message activity are not relayed.
+- Incoming gateway message IDs are deduplicated in SQLite. Outgoing replies record pending, delivered, failed, or uncertain status, and use stable Discord nonces. A connection failure can leave partial delivery; review the record before retrying. Do not run multiple bot instances.
+- A disabled/blocked DM is reported to staff as a delivery failure, never as successful delivery. Closing can still complete if its final notification DM fails; staff are told.
+- Transcripts are **staff-only** and contain internal notes, delivery records and retained channel messages. Do not send them to members. Deleted channel messages and old edits cannot be reconstructed. Channel messages are listed newest-first after the chronological delivery ledger.
+- Automatic exports are limited to 20,000 retained channel messages and 7.5 MB. Oversized exports block automatic close; archive manually and manage the channel outside the bot.
+- Database and banner files are private application data. Use SQLite-aware backups or stop the bot before copying database/WAL files. Closing does not erase stored messages.
+- Health endpoints expose status only, never messages or transcripts.
+
+## Development and verification
+
+Requires Node 24+.
 
 ```sh
 npm ci
 cp .env.example .env
-# Fill in .env privately.
+# Set the token privately and use a test guild.
+npm run check
 npm test
 npm start
 ```
 
-`npm run check` validates entry point syntax. GitHub Actions runs syntax checks and automated tests. Tests cover authorization, private escalation, persistence, claim conflicts, close/reopen, transcript pagination, creation limits, restart recovery, and archive-before-delete behavior. Live Discord/Render verification still requires deployment credentials.
+Automated tests exercise inbound DM routing, private permissions, duplicate events, nonmember/block rejection, successful and failed staff replies, internal-note isolation, escalation, claim conflicts, archive failures, close/new-conversation behavior, restart recovery, legacy-data preservation, panel layout, and banner persistence.
 
-## Operations and limitations
+Live acceptance after deployment:
 
-- Keep the database and WAL files private. Back up the SQLite database using a SQLite-aware backup or stop the bot before copying all database files. Do not delete the disk during redeployments.
-- Do not run multiple bot instances against this database. In-process locks serialize ticket mutations per guild.
-- Close retains the channel; delete is irreversible after confirmation. Transcripts include currently available message content, form answers, audit entries, embed text, and attachment URLs. They cannot recover deleted messages or previous edits, and do not download attachment files. Attachment URLs may expire. Export limits are 20,000 messages / 7.5 MB; exceeding either blocks automatic deletion.
-- Logs and archived transcripts are admin-only. Local audit data is retained if a routine log send fails; there is no automatic retry queue. Archive upload failure blocks deletion.
-- Discord channel/category quotas still apply. Archive old tickets before reaching category limits.
-- `/setup` repairs configured roles and channels. If a role was deleted and recreated, existing ticket overrides may reference the old role; close/reopen or escalate affected tickets to rebuild their permissions. Do not manually modify private channel overwrites.
-- Changing between guild-specific and global command registration can leave old command copies; remove stale commands using the Discord developer tools. Startup registration replaces this application's commands in the chosen scope.
-- Startup reconciles interrupted creations and channels manually deleted while offline. A ticket recovered after a crash may lack its welcome message; `/ticket` commands still work.
-- This bot has no public ticket viewer or web control panel. `/` and `/healthz` expose status only.
+1. Run `/setup` and `/panel` in the configured server.
+2. From a regular member account, DM the bot text and an attachment. Confirm a private `mail-…` channel is created and the member cannot view it.
+3. As Support, use `/modmail reply`. Confirm the member receives it through the bot.
+4. Send an ordinary staff-channel message and `/modmail note`. Confirm neither reaches the member.
+5. Escalate, then verify Support loses access while admins retain it.
+6. Close as an admin, confirm the private transcript and closure DM, then send another member DM to start a new conversation.
+7. Restart the service and verify the existing open conversation still receives messages. Test disabled DMs to confirm failure is reported honestly.
 
-## Live acceptance check
-
-1. Run `/setup` twice and check there is one configured role pair, category, and log channel.
-2. As a regular member open General Support; confirm a different regular member cannot see it.
-3. As Support claim, send an evidence reply, add/remove a participant, and set priority.
-4. Open Staff Report; confirm Support cannot see it while Ticket Admin can.
-5. Close/reopen and verify owner message permissions. Restart the service and test an old button.
-6. Close and delete as Ticket Admin; confirm the transcript exists in private logs before the channel disappears.
-
-## Customer Assistance panel
-
-`/panel` displays the Thai banner above your Customer Assistance text and ticket menu. The panel and menu contain no emojis, and no custom server emojis or permissions are needed. Previously saved custom emoji settings are ignored.
-
-Use the optional `banner` attachment to upload a PNG, JPEG, GIF, or WebP image up to 8 MB. The image and per-channel panel settings are saved beside the database; keep that directory on the persistent disk. Omit `banner` to reuse the saved image or the bundled Thai banner. Run `/panel` again in the same channel to update the tracked message.
-
-Only ✅ and ❌ are used in bot-authored output: claim/reopen controls use the check, close/delete controls use the cross, and success/error status messages use them where appropriate. Customer-submitted text and transcripts retain their original content.
-
-Deploy the latest code to update slash command options, then run `/panel` to refresh existing panels. Old ticket welcome messages are not edited automatically; new tickets use the updated controls.
+Live Discord/Render verification requires credentials and has not been performed by the automated tests.

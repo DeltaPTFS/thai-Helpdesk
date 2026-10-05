@@ -1,24 +1,28 @@
 import { SlashCommandBuilder, PermissionFlagsBits as P } from 'discord.js';
 import { templates } from './content.js';
-const command = (name, description) => new SlashCommandBuilder().setName(name).setDescription(description).setDMPermission(false);
-export const commands = [
-  command('setup','Create or repair helpdesk roles, private category, and logs').setDefaultMemberPermissions(P.Administrator),
-  command('panel','Create or update your Customer Assistance panel').setDefaultMemberPermissions(P.ManageGuild)
-    .addAttachmentOption(o=>o.setName('banner').setDescription('Upload the banner image (PNG, JPEG, GIF or WebP; max 8 MB)')),
-  command('helpdesk','Show helpdesk commands and ticket guidance'),
-  command('ticket','Manage this support ticket')
-    .addSubcommand(s=>s.setName('claim').setDescription('Assign this ticket to yourself'))
+const command=(name,description)=>new SlashCommandBuilder().setName(name).setDescription(description).setDMPermission(false);
+export const commands=[
+  command('setup','Set up private modmail staff channels and roles').setDefaultMemberPermissions(P.Administrator),
+  command('panel','Post or update the Customer Assistance DM panel').setDefaultMemberPermissions(P.ManageGuild)
+    .addAttachmentOption(o=>o.setName('banner').setDescription('Optional PNG, JPEG, GIF or WebP banner; max 8 MB')),
+  command('helpdesk','Explain how to contact staff through modmail'),
+  command('modmail','Manage a private modmail conversation')
+    .addSubcommand(s=>s.setName('reply').setDescription('Send an explicit reply to the member via bot DM')
+      .addStringOption(o=>o.setName('message').setDescription('Message to send to the member').setMaxLength(3500))
+      .addAttachmentOption(o=>o.setName('attachment').setDescription('Optional attachment (forwarded as a Discord link)')))
+    .addSubcommand(s=>s.setName('template').setDescription('Send a prepared reply to the member')
+      .addStringOption(o=>o.setName('name').setDescription('Prepared reply').setRequired(true).addChoices(...Object.keys(templates).map(v=>({name:v,value:v})))))
+    .addSubcommand(s=>s.setName('note').setDescription('Record a staff-only note; never sent to the member')
+      .addStringOption(o=>o.setName('message').setDescription('Internal note').setMaxLength(3500).setRequired(true)))
+    .addSubcommand(s=>s.setName('claim').setDescription('Assign this conversation to yourself'))
     .addSubcommand(s=>s.setName('unclaim').setDescription('Release your claim'))
-    .addSubcommand(s=>s.setName('close').setDescription('Close this ticket with a reason'))
-    .addSubcommand(s=>s.setName('reopen').setDescription('Reopen a closed ticket (staff)'))
-    .addSubcommand(s=>s.setName('transcript').setDescription('Download the ticket transcript'))
-    .addSubcommand(s=>s.setName('delete').setDescription('Archive and delete a closed ticket (admin)'))
-    .addSubcommand(s=>s.setName('escalate').setDescription('Restrict this ticket to admins and its owner'))
-    .addSubcommand(s=>s.setName('add').setDescription('Add a participant (staff)').addUserOption(o=>o.setName('user').setDescription('Member to add').setRequired(true)))
-    .addSubcommand(s=>s.setName('remove').setDescription('Remove a participant (staff)').addUserOption(o=>o.setName('user').setDescription('Member to remove').setRequired(true)))
-    .addSubcommand(s=>s.setName('rename').setDescription('Rename this ticket (staff)').addStringOption(o=>o.setName('name').setDescription('New channel label').setMaxLength(60).setRequired(true)))
-    .addSubcommand(s=>s.setName('priority').setDescription('Set the ticket priority (staff)').addStringOption(o=>o.setName('level').setDescription('Priority').setRequired(true).addChoices(...['low','normal','high','urgent'].map(v=>({name:v,value:v})))))
-    .addSubcommand(s=>s.setName('reply').setDescription('Send a prepared support message (staff)').addStringOption(o=>o.setName('template').setDescription('Prepared message').setRequired(true).addChoices(...Object.keys(templates).map(v=>({name:v,value:v})))))
-    .addSubcommand(s=>s.setName('info').setDescription('Show status, priority, and assignment')),
-  command('ticket-stats','Show helpdesk ticket counts (staff)')
+    .addSubcommand(s=>s.setName('escalate').setDescription('Restrict the conversation to admins'))
+    .addSubcommand(s=>s.setName('close').setDescription('Archive and close; the next member DM starts a new conversation')
+      .addStringOption(o=>o.setName('reason').setDescription('Closure reason shared with the member').setMaxLength(1000).setRequired(true)))
+    .addSubcommand(s=>s.setName('transcript').setDescription('Download the staff-only conversation record'))
+    .addSubcommand(s=>s.setName('info').setDescription('Show member, assignment, and status'))
+    .addSubcommand(s=>s.setName('block').setDescription('Block incoming modmail from a member (admin)')
+      .addUserOption(o=>o.setName('user').setDescription('Member to block').setRequired(true)))
+    .addSubcommand(s=>s.setName('unblock').setDescription('Restore incoming modmail for a member (admin)')
+      .addUserOption(o=>o.setName('user').setDescription('Member to unblock').setRequired(true)))
 ].map(c=>c.toJSON());

@@ -16,7 +16,7 @@ test('legacy emoji choices cannot block posting and are discarded',async()=>{
   const i={options:{getAttachment:()=>null},guild:{emojis:{fetch:async()=>{throw Error('Must not fetch emojis');}}}};
   const result=await panelOptions(i,{emojis:{support:{id:'unavailable'},alliance:{id:'missing'}}});
   assert.deepEqual(result,{});
-  const components=buildPanel().components.map(c=>c.toJSON());
+  const components=buildPanel('123456789012345678').components.map(c=>c.toJSON());
   assert.equal(JSON.stringify(components).includes('emoji'),false);
 });
 test('banner is stored locally and reused without an expiring CDN URL',async()=>{
