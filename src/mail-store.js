@@ -30,6 +30,11 @@ export class MailStore extends Store {
   source(source) { return this.db.prepare('SELECT * FROM mail_events WHERE source=?').get(source); }
   delivered(id,status) { this.db.prepare('UPDATE mail_events SET status=? WHERE id=?').run(status,id); }
   events(t) { return this.db.prepare('SELECT * FROM mail_events WHERE thread=? ORDER BY id').all(t.id); }
+  archive(guild) { return this.db.prepare('SELECT * FROM mail_threads WHERE guild=? ORDER BY created DESC').all(guild).map(r=>this.unpack(r)); }
+  searchIds(guild,query) {
+    return new Set(this.db.prepare(`SELECT DISTINCT e.thread FROM mail_events e JOIN mail_threads t ON t.id=e.thread WHERE t.guild=? AND instr(lower(e.body),lower(?))>0`).all(guild,query).map(r=>r.thread));
+  }
+  recoverDeliveries(guild) { this.db.prepare("UPDATE mail_events SET status='uncertain' WHERE status='pending' AND thread IN (SELECT id FROM mail_threads WHERE guild=?)").run(guild); }
   block(guild,owner,value) { if(value) this.db.prepare('INSERT OR IGNORE INTO mail_blocks VALUES (?,?)').run(guild,owner); else this.db.prepare('DELETE FROM mail_blocks WHERE guild=? AND owner=?').run(guild,owner); }
   blocked(guild,owner) { return Boolean(this.db.prepare('SELECT 1 FROM mail_blocks WHERE guild=? AND owner=?').get(guild,owner)); }
 }

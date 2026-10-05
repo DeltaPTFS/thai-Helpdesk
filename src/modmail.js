@@ -3,6 +3,7 @@ import { Locks } from './store.js';
 import { canAdmin, canStaff, templates } from './content.js';
 import { buildPanel } from './branding.js';
 import { panelOptions } from './panel-options.js';
+import { advancedAction,summary,controls,ensureInbox,refreshInbox,refreshCard,maintain,feedbackRow,rating,staffModal } from './operations.js';
 const silent={parse:[]};
 const allow=[P.ViewChannel,P.SendMessages,P.ReadMessageHistory,P.AttachFiles,P.EmbedLinks];
 const check=(condition,message)=>{if(!condition) throw new Error(message);};
@@ -20,8 +21,16 @@ export async function sendText(target,text,source) {
 }
 
 export class Modmail {
-  locks=new Locks(); limits=new Map();
+  locks=new Locks(); limits=new Map(); timer=null; maintenanceRunning=false;
   constructor(client,store,guildId) {this.client=client;this.store=store;this.guildId=guildId;}
+  startMaintenance() {
+    this.timer=setInterval(()=>{
+      if(this.maintenanceRunning)return;this.maintenanceRunning=true;
+      void this.locks.run(this.guildId,()=>maintain(this)).catch(e=>console.error('Inbox maintenance failed:',e.code??e.name)).finally(()=>{this.maintenanceRunning=false;});
+    },60000);
+    this.timer.unref();
+  }
+  stopMaintenance() {if(this.timer)clearInterval(this.timer);}
   respond(i,content) { return i.editReply(typeof content==='string'?{content,allowedMentions:silent}:content); }
   permissions(guild,c,adminOnly=false) {
     return [{id:guild.id,deny:[P.ViewChannel]},{id:this.client.user.id,allow:[...allow,P.ManageChannels,P.ManageMessages]},
@@ -46,7 +55,8 @@ export class Modmail {
     if(!logs || logs.type!==ChannelType.GuildText) logs=await i.guild.channels.create({name:'modmail-logs',type:ChannelType.GuildText,parent:category.id,permissionOverwrites:this.permissions(i.guild,c,true)});
     else await logs.permissionOverwrites.set(this.permissions(i.guild,c,true));
     c.mailLogs=logs.id;this.store.saveConfig(i.guildId,c);
-    await this.respond(i,`✅ Modmail is ready.\nSupport: <@&${c.supportRole}>\nAdmins: <@&${c.adminRole}>\nPrivate category: **Modmail**\nArchive: <#${c.mailLogs}>\n\nAssign staff roles, then run /panel in your assistance channel. Members DM this bot; staff use /modmail reply. Ordinary staff-channel messages are internal. Existing ticket channels and history have been retained.`);
+    await ensureInbox(this,i,c);
+    await this.respond(i,`✅ Modmail is ready.\nSupport: <@&${c.supportRole}>\nAdmins: <@&${c.adminRole}>\nPrivate category: **Modmail**\nLive inbox: <#${c.mailInbox}>\nArchive: <#${c.mailLogs}>\n\nAssign staff roles, then run /panel in your assistance channel. Members DM this bot; staff use /modmail reply. Ordinary staff-channel messages are internal. Existing ticket channels and history have been retained.`);
   }
   async panel(i,c) {
     check(canAdmin(i.member,c),'Only a modmail administrator can post the panel.');
@@ -100,11 +110,15 @@ export class Modmail {
           channel=await guild.channels.create({name:`mail-${String(t.id).padStart(4,'0')}`,type:ChannelType.GuildText,parent:c.mailCategory,
             topic:`THAI modmail #${t.id} | Member ${t.owner} | Use /modmail reply; regular messages are internal`,permissionOverwrites:this.permissions(guild,c,t.adminOnly)});
           t.channel=channel.id;t.status='open';this.store.saveMail(t);fresh=true;
-          await channel.send({embeds:[card(`Modmail #${t.id}`,`Member: <@${t.owner}> (${t.owner})\nUse **/modmail reply** to send a DM. Normal messages and /modmail note are staff-only.\nUse /modmail close to archive. Never add the member to this channel.`)],allowedMentions:silent});
+          const control=await channel.send({embeds:[summary(t,c)],components:[controls(t)],allowedMentions:silent});
+          t.controlMessage=control.id;this.store.saveMail(t);
         } else channel=await guild.channels.fetch(t.channel);
+        t.waitingSince=t.waitingSince??Date.now();t.firstReceivedAt=t.firstReceivedAt??Date.now();t.lastInboundAt=Date.now();this.store.saveMail(t);
         const event=this.store.event(t,message.id,'incoming',message.author.id,body,'pending');
         try {await sendText(channel,`**Member • ${message.author.id} • Mail #${t.id}**\n${body}`,message.id);this.store.delivered(event,'delivered');}
         catch(e) {this.store.delivered(event,'uncertain');throw e;}
+        await refreshCard(this,channel,t,c);
+        await refreshInbox(this,guild,c).catch(()=>console.error('Inbox refresh failed.'));
         await message.reply({content:fresh?'✅ Your message has been sent to Thai Airways Customer Care. Your messages and attachment links are visible to our support team and server administrators. Staff replies will arrive through this bot. Keep DMs enabled.':'✅ Your message was forwarded to Customer Care.',allowedMentions:silent}).catch(()=>{});
       } catch(e) {
         console.error('Incoming modmail failed:',e.code ?? e.name);
@@ -140,12 +154,16 @@ export class Modmail {
       throw new Error(e.code===50007?'Reply not delivered: the member has DMs disabled or has blocked the bot. Ask them to enable DMs.':'Reply delivery could not be confirmed; it may be partially delivered. Check the record before retrying.');
     }
     this.store.delivered(event,'delivered');
+    if(t.firstResponseMs==null && t.firstReceivedAt)t.firstResponseMs=Date.now()-t.firstReceivedAt;
+    t.waitingSince=null;t.lastReminder=null;t.lastReplyAt=Date.now();this.store.saveMail(t);
+    await refreshCard(this,i.channel,t,this.store.config(i.guildId));
     try {await sendText(i.channel,`**Staff reply delivered • ${i.user.id}**\n${text}`);}
     catch {return this.respond(i,'✅ DM delivered, but the channel copy failed. The reply is saved in the transcript record.');}
     await this.respond(i,'✅ Reply delivered to the member by DM.');
   }
   async action(i,c) {
     const action=i.options.getSubcommand();
+    if(await advancedAction(this,i,c,action))return;
     if(action==='block' || action==='unblock') {
       check(canAdmin(i.member,c),'Only modmail administrators can block or unblock members.');
       const user=i.options.getUser('user',true);this.store.block(i.guildId,user.id,action==='block');
@@ -155,7 +173,7 @@ export class Modmail {
     check(t && t.guild===i.guildId,'Use this command in a modmail staff conversation.');
     check(canStaff(i.member,c,t),'You do not have permission to manage this conversation.');
     if(action==='transcript') return this.respond(i,{content:'Staff-only transcript, including internal notes. Attachment links may expire.',files:[await this.transcript(i.channel,t)]});
-    if(action==='info') return this.respond(i,`**Modmail #${t.id}**\nMember: <@${t.owner}>\nStatus: ${t.status}\nAssigned: ${t.claimedBy?`<@${t.claimedBy}>`:'Unclaimed'}\nAccess: ${t.adminOnly?'Admins':'Support team'}`);
+    if(action==='info') return this.respond(i,{embeds:[summary(t,c)],components:[controls(t)],allowedMentions:silent});
     check(t.status==='open','This conversation is closed. A new member DM will start a new conversation.');
     if(action==='reply') {
       const attachment=i.options.getAttachment('attachment');
@@ -174,10 +192,15 @@ export class Modmail {
       const reason=i.options.getString('reason',true).trim();check(reason,'Provide a closure reason.');
       // Archive delivery is mandatory. No channel is automatically deleted.
       await this.log(i.guild,c,`Closed modmail #${t.id}`,`Member: <@${t.owner}>\nClosed by <@${i.user.id}>\nReason: ${reason}`,[await this.transcript(i.channel,t)]);
-      t.status='closed';t.closeReason=reason;this.store.saveMail(t);this.store.event(t,i.id,'closed',i.user.id,reason);
+      t.status='closed';t.closedAt=Date.now();t.waitingSince=null;t.closeReason=reason;this.store.saveMail(t);this.store.event(t,i.id,'closed',i.user.id,reason);
       let notified=true;
       try {const user=await this.client.users.fetch(t.owner);await sendText(user,`✅ Your Customer Care conversation #${t.id} has been closed.\nReason: ${reason}\nSend a new DM if you need more help.`,i.id);}
       catch {notified=false;}
+      if(notified && c.feedback!==false) {
+        try {const user=await this.client.users.fetch(t.owner);await user.send({content:`How was your Customer Care experience for conversation #${t.id}? Optional: choose 1 (poor) to 5 (excellent).`,components:[feedbackRow(t)],allowedMentions:silent});}
+        catch {console.error('Feedback survey delivery failed.');}
+      }
+      await refreshCard(this,i.channel,t,c);
       await i.channel.send({embeds:[card('Conversation closed',`Reason: ${reason}\nArchived in private modmail logs. Member notification: ${notified?'delivered':'failed'}.`)],allowedMentions:silent}).catch(()=>{});
       return this.respond(i,`✅ Conversation archived and closed.${notified?'':' The closure DM could not be delivered.'}`);
     }
@@ -189,21 +212,37 @@ export class Modmail {
       await i.channel.permissionOverwrites.set(this.permissions(i.guild,c,true));note='Restricted to modmail admins';
     } else throw new Error('Unknown modmail action.');
     this.store.saveMail(t);this.store.event(t,i.id,'action',i.user.id,note);
+    await refreshCard(this,i.channel,t,c);
     await this.respond(i,`✅ ${note}`);
   }
   async handle(i) {
     if(!i.isChatInputCommand() && !i.isButton() && !i.isStringSelectMenu() && !i.isModalSubmit()) return;
     try {
+      if(i.isButton() && /^mail:(reply|note|close):\d+$/.test(i.customId)) {
+        check(i.inGuild() && i.guildId===this.guildId,'Use this control in the configured server.');
+        const t=this.store.mail(Number(i.customId.split(':')[2])),c=this.store.config(i.guildId);
+        check(t && t.guild===i.guildId && t.channel===i.channelId && t.status==='open' && canStaff(i.member,c,t),'You cannot use this conversation control.');
+        return await i.showModal(staffModal(i,t));
+      }
       await i.deferReply({flags:MessageFlags.Ephemeral});
+      if(i.isButton() && i.customId.startsWith('mail:rate:')) return await this.locks.run(this.guildId,()=>rating(this,i));
       if(!i.inGuild()) return this.respond(i,'Send a normal DM to this bot to contact Customer Care.');
       check(i.guildId===this.guildId,'This bot serves a different configured server.');
       await this.locks.run(this.guildId,async()=>{
+        if((i.isButton() || i.isModalSubmit()) && i.customId.startsWith('mail:')) {
+          const [,raw,id]=i.customId.split(':'),action=raw.replace('submit-','');
+          check((i.isButton() && ['claim','info'].includes(action)) || (i.isModalSubmit() && ['submit-reply','submit-note','submit-close'].includes(raw)),'Unknown conversation control.');
+          const t=this.store.mail(Number(id)),c=this.store.config(i.guildId);
+          check(t && t.guild===i.guildId && t.channel===i.channelId && canStaff(i.member,c,t),'You cannot access this conversation.');
+          const proxy={id:i.id,user:i.user,member:i.member,guildId:i.guildId,channelId:i.channelId,guild:i.guild,channel:i.channel,editReply:p=>i.editReply(p),options:{getSubcommand:()=>action,getString:()=>i.isModalSubmit()?i.fields.getTextInputValue('text'):null,getAttachment:()=>null}};
+          try {return await this.action(proxy,c);}finally {await refreshInbox(this,i.guild,c).catch(()=>{});}
+        }
         if(!i.isChatInputCommand()) return this.respond(i,'The ticket system has been replaced by modmail. Send a direct message to this bot for help.');
         if(i.commandName==='setup') return this.setup(i);
-        if(i.commandName==='helpdesk') return this.respond(i,'**Thai Airways Modmail**\nMembers: open this bot’s profile and send a DM. Replies arrive through the bot.\nStaff: /modmail reply sends a DM; /modmail note and normal channel messages stay internal. Use claim, close, transcript, or escalate as needed.\nAdmins: /setup, /panel, /modmail block and unblock.');
+        if(i.commandName==='helpdesk') return this.respond(i,'**Thai Airways Modmail**\nMembers: open this bot’s profile and send a DM. Replies arrive through the bot.\nStaff: /modmail reply sends a DM; /modmail note and normal channel messages stay internal. Use the Reply, Private note, Claim and Close buttons in each conversation. /modmail inbox shows the queue; search, history, priority, tag, deliveries and stats help manage it.\nAdmins: /setup, /panel, /modmail settings, assign, block and unblock.');
         const c=this.store.config(i.guildId);check(c?.mailCategory && c?.mailLogs,'An administrator must run /setup to activate modmail first.');
         if(i.commandName==='panel') return this.panel(i,c);
-        if(i.commandName==='modmail') return this.action(i,c);
+        if(i.commandName==='modmail') {try {return await this.action(i,c);} finally {await refreshInbox(this,i.guild,c).catch(()=>{});}}
         return this.respond(i,'Tickets have been replaced by modmail. Use /helpdesk for the new commands.');
       });
     } catch(e) {
@@ -214,6 +253,7 @@ export class Modmail {
   }
   async reconcile(guild) {
     await guild.channels.fetch();
+    this.store.recoverDeliveries(guild.id);
     for(const t of this.store.mails(guild.id)) {
       if(t.status==='creating') {
         const channel=guild.channels.cache.find(c=>c.topic?.startsWith(`THAI modmail #${t.id} | Member ${t.owner} |`));

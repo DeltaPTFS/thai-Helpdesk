@@ -28,7 +28,7 @@ In the [Discord Developer Portal](https://discord.com/developers/applications), 
 
 Invite scopes: `bot`, `applications.commands`. Give the bot View Channels, Send Messages, Read Message History, Embed Links, Attach Files, Manage Channels, Manage Roles, and Manage Messages. Place its role above the staff roles it manages. Administrator permission is not required for the bot.
 
-Deploy, then run **`/setup`** as a server administrator and **`/panel`** in the public assistance channel. Setup creates a private **Modmail** category and admin-only **modmail-logs**. It reuses the previously configured Support and Ticket Admin roles when present; a new installation creates Support and Modmail Admin. Assign staff roles to trusted people. To let an admin-role member without Manage Server post the panel, allow `/panel` in Server Settings → Integrations.
+Deploy, then run **`/setup`** as a server administrator and **`/panel`** in the public assistance channel. Setup creates a private **Modmail** category, a **modmail-inbox** staff dashboard, and admin-only **modmail-logs**. It reuses the previously configured Support and Ticket Admin roles when present; a new installation creates Support and Modmail Admin. Assign staff roles to trusted people. To let an admin-role member without Manage Server post the panel, allow `/panel` in Server Settings → Integrations.
 
 The included Render blueprint uses a paid Starter service and persistent disk. Render Free does not retain a local database across restarts/redeployments. See [Render persistent disks](https://render.com/docs/disks). The public web URL is a minimal health endpoint, not a dashboard.
 
@@ -119,3 +119,39 @@ Live acceptance after deployment:
 7. Restart the service and verify the existing open conversation still receives messages. Test disabled DMs to confirm failure is reported honestly.
 
 Live Discord/Render verification requires credentials and has not been performed by the automated tests.
+
+
+## Advanced staff workspace
+
+After deploying this upgrade, run `/setup` again to create **Modmail → #modmail-inbox**. Existing conversations and permissions are preserved. New conversations receive a live control card showing state, priority, assignment, visibility and tags, with **Reply**, **Private note**, **Claim**, **Close**, and **Details** buttons. Reply, note and close open forms; authorization is checked again when submitted. For older channels, `/modmail controls` posts the new card.
+
+The shared inbox shows ten active, ordinary Support conversations, ordered by priority and waiting time. It excludes admin-only conversations, even from counts. Use the private `/modmail inbox` command for pagination, filters, and the full queue your role can access. The dashboard updates after incoming messages and slash/button actions, and refreshes every minute while the bot is online. It uses the existing dashboard message rather than posting a stream of updates.
+
+| New command | Purpose |
+| --- | --- |
+| `/modmail inbox [filter] [page]` | Queue filters: all, unclaimed, mine, overdue |
+| `/modmail priority level:` | Low, normal, high or urgent |
+| `/modmail assign user:` | Admin assignment to an eligible staff member |
+| `/modmail tag label: [remove]` | Up to five labels; lowercase letters, digits and hyphens |
+| `/modmail search query: [page]` | Find recorded messages/notes and tags; no inaccessible results |
+| `/modmail history user: [page]` | Member’s previous conversations visible to the requesting staff member |
+| `/modmail stats` | Open/closed/overdue counts, average first response and satisfaction |
+| `/modmail deliveries` | Recent incoming/outgoing delivery statuses without message previews |
+| `/modmail controls` | Post a fresh conversation control card |
+| `/modmail settings response_minutes: [feedback]` | Admin response target and survey setting |
+
+### Response tracking
+
+The default internal response target is **60 minutes**. Set a value from 5 minutes to 7 days with `/modmail settings`. It is an internal staff target, not a public response-time guarantee.
+
+A received DM starts a waiting interval; additional messages do not reset it. A successfully delivered staff reply ends that interval and marks the conversation as waiting for the member. Failed replies do not clear the wait. First-response timing is measured from the first received DM tracked by this upgrade to the first successful reply; historical timings are not fabricated. Statistics are all-time and permission-scoped.
+
+Once a conversation exceeds the target, a staff-only reminder is posted in its own channel. Reminders repeat no more than once per hour while still overdue, with their timestamps persisted across restarts. They do not notify members or automatically close conversations. Maintenance runs once per minute while the bot is online; downtime is not monitored externally.
+
+### Member feedback and delivery auditing
+
+After closing and successfully notifying the member, the bot offers an optional **1–5 satisfaction survey**. Only the conversation owner may rate it, only after closure, and only once. Feedback is stored and included in staff statistics. Use `/modmail settings ... feedback:false` to stop sending new surveys. Existing survey buttons remain valid.
+
+After a restart, any interrupted `pending` delivery is marked **uncertain**. `/modmail deliveries` makes these cases visible; the bot does not blindly resend potentially delivered messages. Delivery records and internal notes remain in staff-only transcripts. Search covers recorded DM traffic and `/modmail note` entries, not ordinary unrecorded staff chat.
+
+The upgrade adds privacy and workflow tests for restricted inboxes/search/metrics, queue order, reminder deduplication, feedback ownership, restart delivery state, assignment permissions, and successful-versus-failed response tracking. Live checks should include a member feedback submission and staff button reply after deployment.

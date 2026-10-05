@@ -26,7 +26,7 @@ client.once(Events.ClientReady,async()=>{
     await rest.put(Routes.applicationGuildCommands(client.user.id,guildId),{body:commands});
     // Retire the previous global ticket commands; modmail commands live in the target guild.
     await rest.put(Routes.applicationCommands(client.user.id),{body:[]});
-    ready=true; console.log(`THAI Modmail ready in ${client.guilds.cache.size} server(s).`);
+    ready=true; helpdesk.startMaintenance(); console.log(`THAI Modmail ready in ${client.guilds.cache.size} server(s).`);
   } catch(err) { console.error('Startup failed:',err.code ?? err.message); shutdown(1); }
 });
 client.on(Events.InteractionCreate,i=>{
@@ -39,6 +39,6 @@ client.on(Events.ChannelDelete,channel=>{
   const t=store.byChannel(channel.id);if(t && t.status==='open') {t.status='missing';store.saveMail(t);}
 });
 client.on(Events.Error,err=>console.error('Discord connection error:',err.code ?? err.name));
-function shutdown(code=0) { ready=false; client.destroy(); server.close(); store.close(); process.exitCode=code; }
+function shutdown(code=0) { ready=false; helpdesk?.stopMaintenance(); client.destroy(); server.close(); store.close(); process.exitCode=code; }
 process.once('SIGTERM',()=>shutdown()); process.once('SIGINT',()=>shutdown());
 client.login(token).catch(err=>{console.error('Discord login failed:',err.code ?? err.message); shutdown(1);});
