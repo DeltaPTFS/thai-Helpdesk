@@ -1,18 +1,12 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { thaiEmojis, resolveThaiEmojis } from './branding.js';
 
 export async function panelOptions(i,saved={}) {
-  const selected={...thaiEmojis,...saved.emojis};
-  for(const [slot,option] of Object.entries({support:'heading_emoji',alliance:'alliance_emoji',general:'general_emoji',report:'report_emoji',staff:'staff_emoji',appeal:'appeal_emoji',partnership:'partnership_emoji'})) {
-    const value=i.options?.getString(option);
-    if(value!=null) selected[slot]=value.trim().toLowerCase()==='none' ? null : value.trim();
-  }
-  const emojis=await resolveThaiEmojis(i.guild,selected);
+  // Ignore legacy saved emoji choices; panels now contain no emojis.
   const upload=i.options?.getAttachment('banner');
   const banner=upload ? await saveBanner(upload) : saved.banner;
-  return {emojis,...(banner?{banner}:{})};
+  return banner ? {banner} : {};
 }
 
 export async function saveBanner(upload, fetcher=fetch, directory=join(dirname(process.env.DATABASE_PATH || './data/helpdesk.sqlite'),'banners')) {

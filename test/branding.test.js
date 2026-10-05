@@ -2,10 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { Collection, MessageFlags, ChannelType } from 'discord.js';
-import { buildPanel, resolveThaiEmojis, thaiEmojis, bannerPath } from '../src/branding.js';
+import { buildPanel, bannerPath } from '../src/branding.js';
 import { Helpdesk } from '../src/helpdesk.js';
 import { Store } from '../src/store.js';
-const available=()=>new Collection(Object.values(thaiEmojis).map(e=>[e.id,{...e,available:true,usable:true}]));
+
 
 test('panel uses attachment banner above text card and working ticket dropdown',()=>{
   const panel=buildPanel(), components=panel.components.map(c=>c.toJSON());
@@ -15,32 +15,24 @@ test('panel uses attachment banner above text card and working ticket dropdown',
   assert.equal(panel.files[0].name,'thai-assistance-banner.jpeg');
   assert.equal(readFileSync(bannerPath).subarray(0,2).toString('hex'),'ffd8');
   const text=components[1].components[0].content;
-  assert.ok(text.startsWith('<:b_support:1555047347573096489> **Customer Assistance**'));
+  assert.ok(text.startsWith('**Customer Assistance**'));
   assert.ok(text.includes('**@Thai Airways Customer Care**'));
   assert.ok(text.includes('**24 hours a day, 7 days a week**'));
-  assert.ok(text.endsWith('<:star_alliance:1555049259609493555>'));
+  assert.equal(/<a?:\w+:\d+>/.test(text),false);
   assert.deepEqual(panel.allowedMentions,{parse:[]});
   const menu=components[2].components[0];assert.equal(menu.custom_id,'ticket:open');assert.equal(menu.options.length,5);
-  for(const option of menu.options) assert.equal(option.emoji.id,thaiEmojis.support.id);
+  for(const option of menu.options) assert.equal(option.emoji,undefined);
 });
-test('emoji check preserves actual name/animation and rejects inaccessible emojis',async()=>{
-  const emojis=available();emojis.get(thaiEmojis.support.id).animated=true;
-  assert.equal((await resolveThaiEmojis({emojis:{fetch:async()=>emojis}})).support.animated,true);
-  emojis.get(thaiEmojis.alliance.id).usable=false;
-  await assert.rejects(resolveThaiEmojis({emojis:{fetch:async()=>emojis}}),/star_alliance.*unavailable/);
-  emojis.delete(thaiEmojis.alliance.id);
-  await assert.rejects(resolveThaiEmojis({emojis:{fetch:async()=>emojis}}),/star_alliance.*unavailable/);
-});
-test('bot authored sources contain no standard emoji characters',()=>{
+test('bot authored sources contain only check and cross emojis',()=>{
   for(const file of readdirSync(new URL('../src/',import.meta.url)).filter(f=>f.endsWith('.js'))) {
-    assert.equal(/\p{Extended_Pictographic}/u.test(readFileSync(new URL(`../src/${file}`,import.meta.url),'utf8')),false,file);
+    assert.equal(/\p{Extended_Pictographic}/u.test(readFileSync(new URL(`../src/${file}`,import.meta.url),'utf8').replace(/[✅❌]/gu,'')),false,file);
   }
 });
 test('repeated panel command edits the tracked message instead of duplicating it',async()=>{
   const store=new Store(':memory:');let sends=0,edits=0;
   const config={adminRole:'admin'};store.saveConfig('guild',config);
   const message={id:'panel',author:{id:'bot'},edit:async payload=>{edits++;assert.deepEqual(payload.attachments,[]);}};
-  const i={guildId:'guild',channelId:'channel',member:{permissions:{has:()=>true}},guild:{emojis:{fetch:async()=>available()}},channel:{type:ChannelType.GuildText,send:async()=>{sends++;return message;},messages:{fetch:async()=>message}},editReply:async()=>{}};
+  const i={guildId:'guild',channelId:'channel',member:{permissions:{has:()=>true}},guild:{emojis:{fetch:async()=>{throw Error('Emoji access should not be required');}}},channel:{type:ChannelType.GuildText,send:async()=>{sends++;return message;},messages:{fetch:async()=>message}},editReply:async()=>{}};
   const helpdesk=new Helpdesk({user:{id:'bot'}},store);
   await helpdesk.panel(i,config);await helpdesk.panel(i,store.config('guild'));
   assert.equal(sends,1);assert.equal(edits,1);assert.equal(store.config('guild').panels.channel,'panel');store.close();

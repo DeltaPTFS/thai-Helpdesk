@@ -2,7 +2,7 @@ import { ActionRowBuilder as Row, ButtonBuilder as Button, ButtonStyle as Style,
 import { types, templates, canAdmin, canStaff, mayAccess, transcriptLine } from './content.js';
 import { Locks } from './store.js';
 import { panelOptions } from './panel-options.js';
-import { buildPanel, thaiEmojis, emojiText } from './branding.js';
+import { buildPanel } from './branding.js';
 
 const COLOR = 0x653cba;
 const allow = [P.ViewChannel,P.SendMessages,P.ReadMessageHistory,P.AttachFiles,P.EmbedLinks];
@@ -11,9 +11,9 @@ const embed = (title, description) => new Embed().setColor(COLOR).setTitle(title
 const fail = message => { throw new Error(message); };
 const requireThat = (condition,message) => { if(!condition) fail(message); };
 const controls = () => new Row().addComponents(
-  new Button().setCustomId('ticket:claim').setLabel('Claim').setStyle(Style.Primary),
-  new Button().setCustomId('ticket:close').setLabel('Close').setStyle(Style.Danger),
-  new Button().setCustomId('ticket:reopen').setLabel('Reopen').setStyle(Style.Success),
+  new Button().setCustomId('ticket:claim').setLabel('Claim').setEmoji('✅').setStyle(Style.Primary),
+  new Button().setCustomId('ticket:close').setLabel('Close').setEmoji('❌').setStyle(Style.Danger),
+  new Button().setCustomId('ticket:reopen').setLabel('Reopen').setEmoji('✅').setStyle(Style.Success),
   new Button().setCustomId('ticket:transcript').setLabel('Transcript').setStyle(Style.Secondary)
 );
 
@@ -73,7 +73,7 @@ export class Helpdesk {
     requireThat(canAdmin(i.member,c),'Only a ticket administrator can post the panel.');
     requireThat(i.channel.type===ChannelType.GuildText,'Post the panel in a regular server text channel.');
     const branding=await panelOptions(i,c.panelBranding?.[i.channelId]);
-    const payload=buildPanel(branding.emojis,branding.banner);
+    const payload=buildPanel(branding.banner);
     const previous=c.panels?.[i.channelId];
     let message;
     if(previous) {
@@ -89,7 +89,7 @@ export class Helpdesk {
     c.panels={...c.panels,[i.channelId]:message.id};
     c.panelBranding={...c.panelBranding,[i.channelId]:branding};
     this.store.saveConfig(i.guildId,c);
-    await this.respond(i,'Thai Customer Assistance panel ready. Run /panel here again to update this message.');
+    await this.respond(i,'✅ Thai Customer Assistance panel ready. Run /panel here again to update this message.');
   }
   async open(i,kind,c) {
     requireThat(types[kind],'Unknown ticket category.');
@@ -102,7 +102,7 @@ export class Helpdesk {
     try {
       channel=await i.guild.channels.create({name:`ticket-${String(t.id).padStart(4,'0')}-${kind}`,type:ChannelType.GuildText,parent:c.category,topic:`THAI ticket #${t.id} | Owner ${t.owner} | ${kind}`,permissionOverwrites:this.overwrites(i.guild,c,t),reason:`Helpdesk ticket #${t.id}`});
       t.channel=channel.id; t.status='open'; this.store.save(t);
-      await channel.send({content:`<@${t.owner}>`,embeds:[embed(`Ticket #${t.id} • ${types[kind].label}`,`${emojiText(c.panelBranding?.[i.channelId]?.emojis.support === undefined ? thaiEmojis.support : c.panelBranding[i.channelId].emojis.support)} **Thai Airways Customer Care**\n\n${templates.welcome}\n\n**Status:** Open • **Priority:** Normal\n**Visibility:** ${t.adminOnly?'Owner and ticket admins':'Owner and support team'}\nUse the buttons below or **/ticket** to manage this request.`).addFields(answers.map(a=>({name:a.label,value:a.value})))],components:[controls()],allowedMentions:{users:[t.owner],parse:[]}});
+      await channel.send({content:`<@${t.owner}>`,embeds:[embed(`Ticket #${t.id} • ${types[kind].label}`,`**Thai Airways Customer Care**\n\n${templates.welcome}\n\n**Status:** Open • **Priority:** Normal\n**Visibility:** ${t.adminOnly?'Owner and ticket admins':'Owner and support team'}\nUse the buttons below or **/ticket** to manage this request.`).addFields(answers.map(a=>({name:a.label,value:a.value})))],components:[controls()],allowedMentions:{users:[t.owner],parse:[]}});
     } catch(err) {
       if(channel) {
         // Keep a tracked channel if only the welcome message failed.
@@ -151,14 +151,14 @@ export class Helpdesk {
       await i.channel.permissionOverwrites.set(this.overwrites(i.guild,c,closed));
       this.store.save(closed);
       await this.audit(i,closed,`Closed: ${reason}`);
-      await i.channel.send({embeds:[embed('Ticket closed',`**Reason:** ${reason}\nClosed by <@${i.user.id}>. Staff can reopen with /ticket reopen. This channel is retained until an administrator archives and deletes it.`)],allowedMentions:silent});
+      await i.channel.send({embeds:[embed('❌ Ticket closed',`**Reason:** ${reason}\nClosed by <@${i.user.id}>. Staff can reopen with /ticket reopen. This channel is retained until an administrator archives and deletes it.`)],allowedMentions:silent});
       return this.respond(i,'Ticket closed.');
     }
     requireThat(staff,'This action requires the relevant Support or Ticket Admin role.');
     if(action==='delete' || action==='confirm-delete') {
       requireThat(admin,'Only ticket administrators can delete tickets.');
       requireThat(t.status==='closed','Close this ticket before deleting it.');
-      if(action==='delete') return this.respond(i,{content:'Permanently delete this closed channel? A transcript must be successfully uploaded to the private ticket logs first. Uploaded attachments themselves are not backed up.',components:[new Row().addComponents(new Button().setCustomId(`ticket:confirm-delete:${i.user.id}`).setLabel('Archive & permanently delete').setStyle(Style.Danger))]});
+      if(action==='delete') return this.respond(i,{content:'Permanently delete this closed channel? A transcript must be successfully uploaded to the private ticket logs first. Uploaded attachments themselves are not backed up.',components:[new Row().addComponents(new Button().setCustomId(`ticket:confirm-delete:${i.user.id}`).setLabel('Archive & permanently delete').setEmoji('❌').setStyle(Style.Danger))]});
       requireThat(i.customId.split(':')[2]===i.user.id,'Only the administrator who requested deletion can confirm it.');
       const file=await this.transcript(i.channel,t);
       await this.log(i.guild,c,`Archive • Ticket #${t.id}`,`Owner: <@${t.owner}>\nDeleted by <@${i.user.id}>\nReason: ${t.closeReason}`, [file]);
@@ -172,7 +172,7 @@ export class Helpdesk {
       const reopened={...t,status:'open'};
       await i.channel.permissionOverwrites.set(this.overwrites(i.guild,c,reopened));
       this.store.save(reopened); await this.audit(i,reopened,'Reopened');
-      await i.channel.send({embeds:[embed('Ticket reopened',`Reopened by <@${i.user.id}>. You can reply here again.`)],allowedMentions:silent});
+      await i.channel.send({embeds:[embed('✅ Ticket reopened',`Reopened by <@${i.user.id}>. You can reply here again.`)],allowedMentions:silent});
       return this.respond(i,'Ticket reopened.');
     }
     requireThat(t.status==='open','Reopen this ticket before making changes.');
@@ -254,7 +254,8 @@ export class Helpdesk {
     } catch(err) {
       // Do not log interaction objects or request bodies: they can contain tokens.
       console.error('Helpdesk operation failed:',err.code ?? err.name);
-      const content=err.code ? 'Discord could not complete that action. Check the bot permissions and role position, then try again. Your channel has not been intentionally removed unless deletion was confirmed.' : err.message;
+      const detail=err.code ? 'Discord could not complete that action. Check the bot permissions and role position, then try again. Your channel has not been intentionally removed unless deletion was confirmed.' : err.message;
+      const content=`❌ ${detail}`;
       try { if(i.deferred || i.replied) await i.editReply({content,components:[],allowedMentions:silent}); else await i.reply({content,flags:MessageFlags.Ephemeral,allowedMentions:silent}); }
       catch { console.error('Unable to send interaction error response.'); }
     }

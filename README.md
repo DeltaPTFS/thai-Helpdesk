@@ -98,29 +98,12 @@ npm start
 5. Close/reopen and verify owner message permissions. Restart the service and test an old button.
 6. Close and delete as Ticket Admin; confirm the transcript exists in private logs before the channel disappears.
 
-## Thai Customer Assistance branding
+## Customer Assistance panel
 
-`/panel` displays the bundled `assets/thai-assistance-banner.jpeg` above a Customer Assistance text card, followed by the existing ticket category menu. It uses Discord Components V2 to keep the banner above the card. The Customer Care name is bold display text, not a role ping. The panel includes the supplied 24/7 availability wording; staffing is managed by your team.
+`/panel` displays the Thai banner above your Customer Assistance text and ticket menu. The panel and menu contain no emojis, and no custom server emojis or permissions are needed. Previously saved custom emoji settings are ignored.
 
-Only the supplied Thai custom emojis are used: `b_support` (`1555047347573096489`) and `star_alliance` (`1555049259609493555`). `/panel` checks that both exist in the server and are usable by the bot, including emoji role restrictions. If either is unavailable it explains the problem privately instead of posting broken emoji codes or substituting standard emojis. The banner ships with the bot and is uploaded directly to Discord.
+Use the optional `banner` attachment to upload a PNG, JPEG, GIF, or WebP image up to 8 MB. The image and per-channel panel settings are saved beside the database; keep that directory on the persistent disk. Omit `banner` to reuse the saved image or the bundled Thai banner. Run `/panel` again in the same channel to update the tracked message.
 
-After deploying this update, run `/panel` in the assistance channel. Panels posted before this branding update were not tracked: remove the old panel manually once the new one is posted. Subsequent `/panel` calls in the same channel update the tracked message instead of creating duplicates.
+Only ✅ and ❌ are used in bot-authored output: claim/reopen controls use the check, close/delete controls use the cross, and success/error status messages use them where appropriate. Customer-submitted text and transcripts retain their original content.
 
-### Choose the banner and each emoji with /panel
-
-The slash command now includes optional fields:
-
-| Option | Position |
-| --- | --- |
-| `banner` | Upload the top banner (PNG/JPEG/GIF/WebP, up to 8 MB) |
-| `heading_emoji` | Before Customer Assistance |
-| `alliance_emoji` | After the Star Alliance footer |
-| `general_emoji` | General Support menu entry |
-| `report_emoji` | Player Report menu entry |
-| `staff_emoji` | Staff Report menu entry |
-| `appeal_emoji` | Moderation Appeal menu entry |
-| `partnership_emoji` | Partnership / Other menu entry |
-
-For each emoji, paste a server custom emoji (`<:name:ID>` or `<a:name:ID>`), its numeric ID, or `:name:`. Enter `none` to leave a spot blank. Only custom emojis from this server that the bot can use are accepted; standard emojis are not substituted. If the original supplied IDs are unavailable, replace **both** heading and alliance options, or set either to `none`. Menu positions default to the heading emoji until customized.
-
-Settings are saved per channel; omitted fields retain their previous choices. Uploaded banners are downloaded into a `banners` directory beside the database and re-uploaded to Discord when updating the panel, avoiding expiring attachment links. The database directory must be on the persistent disk to retain these uploads and configuration after Render restarts. Redeploy/restart the bot to register the new command options. Guild command registration with `DISCORD_GUILD_ID` makes them available in that server directly.
+Deploy the latest code to update slash command options, then run `/panel` to refresh existing panels. Old ticket welcome messages are not edited automatically; new tickets use the updated controls.

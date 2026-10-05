@@ -9,19 +9,15 @@ import { buildPanel } from '../src/branding.js';
 import { commands } from '../src/commands.js';
 const emoji={id:'1555047347573096000',name:'thai_help',animated:true,available:true,usable:true};
 const interaction=values=>({guild:{emojis:{fetch:async()=>new Collection([[emoji.id,emoji]])}},options:{getString:n=>values[n]??null,getAttachment:()=>null}});
-test('panel exposes banner and every emoji position',()=>{
-  assert.deepEqual(commands.find(c=>c.name==='panel').options.map(o=>o.name),['banner','heading_emoji','alliance_emoji','general_emoji','report_emoji','staff_emoji','appeal_emoji','partnership_emoji']);
+test('panel exposes only optional banner upload',()=>{
+  assert.deepEqual(commands.find(c=>c.name==='panel').options.map(o=>o.name),['banner']);
 });
-test('replacement emoji options bypass obsolete defaults, persist and allow blank slots',async()=>{
-  const result=await panelOptions(interaction({heading_emoji:`<a:thai_help:${emoji.id}>`,alliance_emoji:'none',report_emoji:':thai_help:',staff_emoji:'none'}));
-  assert.equal(result.emojis.support.id,emoji.id);assert.equal(result.emojis.support.animated,true);assert.equal(result.emojis.alliance,null);
-  const again=await panelOptions(interaction({}),result);assert.deepEqual(again,result);
-  const rows=buildPanel(result.emojis).components.map(c=>c.toJSON());
-  assert.equal(rows[2].components[0].options.find(o=>o.value==='staff').emoji,undefined);
-  assert.equal(rows[2].components[0].options.find(o=>o.value==='report').emoji.id,emoji.id);
-});
-test('unicode and foreign custom emojis are rejected',async()=>{
-  await assert.rejects(panelOptions(interaction({heading_emoji:'not_a_server_emoji',alliance_emoji:'none'})),/unavailable/);
+test('legacy emoji choices cannot block posting and are discarded',async()=>{
+  const i={options:{getAttachment:()=>null},guild:{emojis:{fetch:async()=>{throw Error('Must not fetch emojis');}}}};
+  const result=await panelOptions(i,{emojis:{support:{id:'unavailable'},alliance:{id:'missing'}}});
+  assert.deepEqual(result,{});
+  const components=buildPanel().components.map(c=>c.toJSON());
+  assert.equal(JSON.stringify(components).includes('emoji'),false);
 });
 test('banner is stored locally and reused without an expiring CDN URL',async()=>{
   const dir=await mkdtemp(join(tmpdir(),'thai-banner-test-'));
